@@ -1,4 +1,8 @@
 #include <elf.h>
+#define DT_RELR		35
+#define DT_RELRSZ	36
+#define DT_RELRENT	37
+typedef Elf64_Xword Elf64_Relr;
 
 #include <switch_min.h>
 #include <stdlib.h>
@@ -35,8 +39,7 @@ uint64_t roLoadModule = 0;
 struct ReplacedSymbol* replaced_symbols = NULL;
 int32_t num_replaced_symbols = 0;
 
-uint64_t relasz1 = 0;
-const Elf64_Rela* rela1 = NULL;
+bool relr_available = false;
 
 uint64_t SaltySDCore_GetSymbolAddr(void* base, const char* name)
 {
@@ -61,10 +64,12 @@ uint64_t SaltySDCore_GetSymbolAddr(void* base, const char* name)
 				strtab = (const char*)(base + dyn->d_un.d_ptr);
 				break;
 			case DT_RELA:
-				rela1 = (const Elf64_Rela*)(base + dyn->d_un.d_ptr);
+				break;
+			case DT_RELR:
+				break;
+			case DT_RELRSZ:
 				break;
 			case DT_RELASZ:
-				relasz1 = dyn->d_un.d_val / sizeof(Elf64_Rela);
 				break;
 		}
 	}
@@ -144,6 +149,11 @@ void SaltySDCore_ReplaceModuleImport(void* base, const char* name, void* newfunc
 				break;
 			case DT_RELA:
 				rela = (const Elf64_Rela*)(base + dyn->d_un.d_ptr);
+				break;
+			case DT_RELR:
+				relr_available = true;
+				break;
+			case DT_RELRSZ:
 				break;
 			case DT_RELASZ:
 				relasz += dyn->d_un.d_val / sizeof(Elf64_Rela);
@@ -243,6 +253,11 @@ void SaltySDCore_DynamicLinkModule(void* base)
 			case DT_RELASZ:
 				relasz += dyn->d_un.d_val / sizeof(Elf64_Rela);
 				break;
+			case DT_RELR:
+				relr_available = true;
+				break;
+			case DT_RELRSZ:
+				break;
 			case DT_PLTRELSZ:
 				relasz += dyn->d_un.d_val / sizeof(Elf64_Rela);
 				break;
@@ -283,7 +298,7 @@ void SaltySDCore_DynamicLinkModule(void* base)
 				break;
 			}
 		}
-	}
+	}	
 }
 
 struct Object {
@@ -301,6 +316,17 @@ struct Module {
 void SaltySDCore_fillRoLoadModule() {
 	roLoadModule = SaltySDCore_FindSymbolBuiltin("_ZN2nn2ro10LoadModuleEPNS0_6ModuleEPKvPvmi");
 	return;
+}
+
+bool SaltySDCore_isRelrAvailable() {
+	return relr_available;
+}
+
+void SaltySDCore_getDataForUpdate(uint32_t* num_builtin_elfs_ptr, int32_t* num_replaced_symbols_ptr, struct ReplacedSymbol** replaced_symbols_ptr, void*** builtin_elfs_ptr) {
+	*num_builtin_elfs_ptr = num_builtin_elfs;
+	*num_replaced_symbols_ptr = num_replaced_symbols;
+	*builtin_elfs_ptr = builtin_elfs;
+	*replaced_symbols_ptr = replaced_symbols;
 }
 
 typedef Result (*_ZN2nn2ro10LoadModuleEPNS0_6ModuleEPKvPvmi)(struct Module* pOutModule, const void* pImage, void* buffer, size_t bufferSize, int flag);

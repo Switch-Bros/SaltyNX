@@ -433,6 +433,30 @@ void SaltySDCore_LoadPlugins()
 	return;
 }
 
+typedef void (*nnosQueryMemoryInfo)(void* memoryinfo);
+uintptr_t Address_weak_QueryMemoryInfo = 0;
+
+void QueryMemoryInfo(void* memoryinfo) {
+	static bool initialized = false;
+	if (!initialized) {
+		void** builtin_elfs = NULL;
+		uint32_t num_builtin_elfs = 0;
+
+		struct ReplacedSymbol* replaced_symbols = NULL;
+		int32_t num_replaced_symbols = 0;
+
+		SaltySDCore_getDataForUpdate(&num_builtin_elfs, &num_replaced_symbols, &replaced_symbols, &builtin_elfs);
+
+		for (uint32_t i = 0; i < num_builtin_elfs; i++) {
+			for (int x = 0; x < num_replaced_symbols; x++) {
+				SaltySDCore_ReplaceModuleImport(builtin_elfs[i], replaced_symbols[x].name, replaced_symbols[x].address, true);
+			}
+		}
+		initialized = true;
+	}
+	return ((nnosQueryMemoryInfo)(Address_weak_QueryMemoryInfo))(memoryinfo);
+}
+
 int main(int argc, char *argv[])
 {
 	Result ret;
@@ -472,6 +496,11 @@ int main(int argc, char *argv[])
 		if (R_SUCCEEDED(shmemMapRc)) {
 			NX_FPS(&_sharedmemory);
 			ReverseNX(&_sharedmemory);
+			if (SaltySDCore_isRelrAvailable()) {
+				SaltySDCore_printf("Game is using RELR. Applying hacky solution.\n", ret);
+				Address_weak_QueryMemoryInfo = SaltySDCore_FindSymbolBuiltin("_ZN2nn2os15QueryMemoryInfoEPNS0_10MemoryInfoE");
+				SaltySDCore_ReplaceImport("_ZN2nn2os15QueryMemoryInfoEPNS0_10MemoryInfoE", (void*)QueryMemoryInfo);
+			}
 		}
 		else {
 			SaltySDCore_printf("shmemMap failed: 0x%X\n", shmemMapRc);

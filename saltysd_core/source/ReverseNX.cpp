@@ -91,39 +91,13 @@ bool TryPopNotificationMessage(int &msg) {
 }
 
 int PopNotificationMessage() {
-	
-	static bool check1 = true;
-	static bool check2 = true;
-	static bool compare = false;
-	static bool compare2 = false;
-	
-	*pluginActive_shared = true;
-	
-	if (*def_shared) {
-		if (!check1) {
-			check1 = true;
-			return 0x1e;
+	while (true) {
+		int msg = 0;
+		if (TryPopNotificationMessage(msg)) {
+			return msg;
 		}
-		else if (!check2) {
-			check2 = true;
-			return 0x1f;
-		}
-		else return ((_ZN2nn2oe22PopNotificationMessageEv)(Address_weaks.PopNotificationMessage))();
+		svcSleepThread(1000000);
 	}
-	
-	check1 = false;
-	check2 = false;
-
-	if (compare2 != *isDocked_shared) {
-		compare2 = *isDocked_shared;
-		return 0x1e;
-	}
-	else if (compare != *isDocked_shared) {
-		compare = *isDocked_shared;
-		return 0x1f;
-	}
-	
-	return ((_ZN2nn2oe22PopNotificationMessageEv)(Address_weaks.PopNotificationMessage))();
 }
 
 uint32_t GetPerformanceMode() {
