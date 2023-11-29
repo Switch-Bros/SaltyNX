@@ -517,7 +517,7 @@ void nvnSetPresentInterval(const void* nvnWindow, int mode) {
 
 void* nvnSyncWait0(const void* _this, uint64_t timeout_ns) {
 	uint64_t endFrameTick = ((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))();
-	if (_this == WindowSync) {
+	if (_this == WindowSync && *(Shared.ActiveBuffers) == 2) {
 		if (*(Shared.ZeroSync) == ZeroSyncType_Semi) {
 			u64 FrameTarget = (systemtickfrequency/60) - 8000;
 			s64 new_timeout = (FrameTarget - (endFrameTick - startFrameTick)) - 19200;
