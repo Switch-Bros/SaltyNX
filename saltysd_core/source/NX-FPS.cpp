@@ -7,6 +7,49 @@
 #include <cmath>
 #include "lock.hpp"
 
+struct NVNTexture {
+	char reserved[0xC0];
+};
+
+struct NVNTextureBuilder {
+	char reserved[0x80];
+};
+
+struct NVNWindow {
+	char reserved[0x180];
+};
+
+struct NVNDevice {
+	char reserved[0x3000];
+};
+
+struct NVNDeviceBuilder {
+	char reserved[0x40];
+};
+
+struct NVNMemoryPool {
+	char reserved[0x100];
+};
+
+struct NVNMemoryPoolBuilder {
+	char reserved[0x40];
+};
+
+typedef int NVNtextureFlags;
+typedef int NVNtextureTarget;
+typedef int NVNformat;
+typedef int NVNmemoryPoolFlags;
+
+NVNWindow* m_nvnWindow = 0;
+NVNDevice* m_nvnDevice = 0;
+NVNMemoryPool* m_nvnMemoryPool = 0;
+NVNMemoryPool m_ThirdBufferPool = {0};
+NVNTexture m_ThirdBuffer = {0};
+NVNTextureBuilder m_nvnTextureBuilder = {0};
+NVNMemoryPoolBuilder m_nvnMemoryPoolBuilder = {0};
+
+NVNTexture* Frame_buffers[3] = {0};
+
 extern "C" {
 	typedef u64 (*nvnBootstrapLoader_0)(const char * nvnName);
 	typedef int (*eglSwapBuffers_0)(const void* EGLDisplay, const void* EGLSurface);
@@ -16,6 +59,8 @@ extern "C" {
 	typedef u64 (*_ZN2nn2os17ConvertToTimeSpanENS0_4TickE_0)(u64 tick);
 	typedef u64 (*_ZN2nn2os13GetSystemTickEv_0)();
 	typedef u64 (*eglGetProcAddress_0)(const char* eglName);
+	typedef void* (*aligned_alloc_0)(size_t alignment, size_t size);
+	typedef void (*free_0)(void* buffer);
 }
 
 struct {
@@ -27,6 +72,8 @@ struct {
 	uintptr_t ConvertToTimeSpan;
 	uintptr_t GetSystemTick;
 	uintptr_t eglGetProcAddress;
+	uintptr_t alignedAlloc;
+	uintptr_t free;
 } Address_weaks;
 
 struct nvnWindowBuilder {
@@ -96,6 +143,31 @@ struct {
 
 	uintptr_t nvnWindowSetNumActiveTextures;
 	uintptr_t nvnWindowInitialize;
+	uintptr_t nvnTextureBuilderSetDevice;
+	uintptr_t nvnTextureBuilderSetDefaults;
+	uintptr_t nvnTextureBuilderSetFlags;
+	uintptr_t nvnTextureBuilderSetSize2D;
+	uintptr_t nvnTextureBuilderSetTarget;
+	uintptr_t nvnTextureBuilderSetFormat;
+	uintptr_t nvnTextureBuilderSetStorage;
+	uintptr_t nvnTextureInitialize;
+	uintptr_t nvnTextureFinalize;
+	uintptr_t nvnTextureGetFlags;
+	uintptr_t nvnTextureGetTarget;
+	uintptr_t nvnTextureGetFormat;
+	uintptr_t nvnTextureGetHeight;
+	uintptr_t nvnTextureGetWidth;
+	uintptr_t nvnTextureGetMemoryPool;
+	uintptr_t nvnTextureGetMemoryOffset;
+	uintptr_t nvnMemoryPoolBuilderSetDefaults;
+	uintptr_t nvnMemoryPoolBuilderSetDevice;
+	uintptr_t nvnMemoryPoolGetFlags;
+	uintptr_t nvnMemoryPoolBuilderSetFlags;
+	uintptr_t nvnMemoryPoolFinalize;
+	uintptr_t nvnTextureBuilderGetStorageSize;
+	uintptr_t nvnTextureBuilderGetStorageAlignment;
+	uintptr_t nvnMemoryPoolBuilderSetStorage;
+	uintptr_t nvnMemoryPoolInitialize;
 } Ptrs;
 
 struct {
@@ -125,13 +197,38 @@ typedef uintptr_t (*GetProcAddress)(const void* unk1_a, const char * nvnFunction
 
 bool changeFPS = false;
 bool changedFPS = false;
-typedef void (*nvnBuilderSetTextures_0)(const void* nvnWindowBuilder, int buffers, const void* texturesBuffer);
-typedef void (*nvnWindowSetNumActiveTextures_0)(const void* nvnWindow, int buffers);
-typedef bool (*nvnWindowInitialize_0)(const void* nvnWindow, struct nvnWindowBuilder* windowBuilder);
-typedef void* (*nvnWindowAcquireTexture_0)(const void* nvnWindow, const void* nvnSync, const void* index);
-typedef void (*nvnSetPresentInterval_0)(const void* nvnWindow, int mode);
-typedef int (*nvnGetPresentInterval_0)(const void* nvnWindow);
+typedef void (*nvnBuilderSetTextures_0)(const nvnWindowBuilder* nvnWindowBuilder, int buffers, NVNTexture** texturesBuffer);
+typedef void (*nvnWindowSetNumActiveTextures_0)(const NVNWindow* nvnWindow, int buffers);
+typedef bool (*nvnWindowInitialize_0)(const NVNWindow* nvnWindow, struct nvnWindowBuilder* windowBuilder);
+typedef void* (*nvnWindowAcquireTexture_0)(const NVNWindow* nvnWindow, const void* nvnSync, const void* index);
+typedef void (*nvnSetPresentInterval_0)(const NVNWindow* nvnWindow, int mode);
+typedef int (*nvnGetPresentInterval_0)(const NVNWindow* nvnWindow);
 typedef void* (*nvnSyncWait_0)(const void* _this, uint64_t timeout_ns);
+typedef void (*nvnTextureBuilderSetDefaults_0)(NVNTextureBuilder* _nvnTextureBuilder);
+typedef void (*nvnTextureBuilderSetDevice_0)(NVNTextureBuilder* _nvnTextureBuilder, NVNDevice* _nvnDevice);
+typedef NVNtextureFlags (*nvnTextureGetFlags_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnTextureBuilderSetFlags_0)(NVNTextureBuilder* _nvnTextureBuilder, NVNtextureFlags _nvnTextureFlags);
+typedef NVNtextureTarget (*nvnTextureGetTarget_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnTextureBuilderSetTarget_0)(NVNTextureBuilder* _nvnTextureBuilder, NVNtextureTarget _nvnTextureTarget);
+typedef NVNformat (*nvnTextureGetFormat_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnTextureBuilderSetFormat_0)(NVNTextureBuilder* _nvnTextureBuilder, NVNformat _nvnFormat);
+typedef int (*nvnTextureGetHeight_0)(NVNTexture* _nvnTexture);
+typedef int (*nvnTextureGetWidth_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnTextureBuilderSetSize2D_0)(NVNTextureBuilder* _nvnTextureBuilder, int width, int height);
+typedef NVNMemoryPool* (*nvnTextureGetMemoryPool_0)(NVNTexture* _nvnTexture);
+typedef ptrdiff_t (*nvnTextureGetMemoryOffset_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnTextureBuilderSetStorage_0)(NVNTextureBuilder* _nvnTextureBuilder, const NVNMemoryPool* _nvnMemoryPool, ptrdiff_t offset);
+typedef bool (*nvnTextureInitialize_0)(NVNTexture* _nvnTexture, const NVNTextureBuilder* _nvnTextureBuilder);
+typedef void (*nvnTextureFinalize_0)(NVNTexture* _nvnTexture);
+typedef void (*nvnMemoryPoolBuilderSetDefaults_0)(NVNMemoryPoolBuilder* _nvnMemoryPoolBuilder);
+typedef void (*nvnMemoryPoolBuilderSetDevice_0)(NVNMemoryPoolBuilder* _nvnMemoryPoolBuilder, NVNDevice* _nvnDevice);
+typedef NVNmemoryPoolFlags (*nvnMemoryPoolGetFlags_0)(NVNMemoryPool* _nvnMemoryPool);
+typedef void (*nvnMemoryPoolBuilderSetFlags_0)(NVNMemoryPoolBuilder* _nvnMemoryPoolBuilder, NVNmemoryPoolFlags _nvnMemoryPoolFlags);
+typedef size_t (*nvnTextureBuilderGetStorageSize_0)(NVNTextureBuilder* _nvnTextureBuilder);
+typedef size_t (*nvnTextureBuilderGetStorageAlignment_0)(NVNTextureBuilder* _nvnTextureBuilder);
+typedef bool (*nvnMemoryPoolInitialize_0)(NVNMemoryPool* _nvnMemoryPool, NVNMemoryPoolBuilder* _nvnMemoryPoolBuilder);
+typedef void (*nvnMemoryPoolFinalize_0)(NVNMemoryPool* _nvnMemoryPool);
+typedef void (*nvnMemoryPoolBuilderSetStorage_0)(NVNMemoryPoolBuilder* _nvnMemoryPoolBuilder, void* buffer, size_t size);
 void* WindowSync = 0;
 uint64_t startFrameTick = 0;
 
@@ -469,7 +566,8 @@ uintptr_t eglGetProc(const char* eglName) {
 	return ((eglGetProcAddress_0)(Address_weaks.eglGetProcAddress))(eglName);
 }
 
-bool nvnWindowInitialize(const void* nvnWindow, struct nvnWindowBuilder* windowBuilder) {
+bool nvnWindowInitialize(const NVNWindow* nvnWindow, struct nvnWindowBuilder* windowBuilder) {
+	m_nvnWindow = (NVNWindow*)nvnWindow;
 	if (!*(Shared.Buffers)) {
 		*(Shared.Buffers) = windowBuilder -> numBufferedFrames;
 		if (*(Shared.SetBuffers) >= 2 && *(Shared.SetBuffers) <= windowBuilder -> numBufferedFrames) {
@@ -480,16 +578,68 @@ bool nvnWindowInitialize(const void* nvnWindow, struct nvnWindowBuilder* windowB
 	return ((nvnWindowInitialize_0)(Ptrs.nvnWindowInitialize))(nvnWindow, windowBuilder);
 }
 
-void nvnWindowBuilderSetTextures(const void* nvnWindowBuilder, int numBufferedFrames, const void* nvnTextures) {
+void nvnWindowBuilderSetTextures(const nvnWindowBuilder* nvnWindowBuilder, int numBufferedFrames, NVNTexture** nvnTextures) {
 	*(Shared.Buffers) = numBufferedFrames;
 	if (*(Shared.SetBuffers) >= 2 && *(Shared.SetBuffers) <= numBufferedFrames) {
 		numBufferedFrames = *(Shared.SetBuffers);
 	}
 	*(Shared.ActiveBuffers) = numBufferedFrames;
+	/*
+	if (numBufferedFrames == 2) {
+		static bool initialized = false;
+		static void* buffer = 0;
+
+		((nvnTextureBuilderSetDevice_0)(Ptrs.nvnTextureBuilderSetDevice))(&m_nvnTextureBuilder, m_nvnDevice);
+		((nvnTextureBuilderSetDefaults_0)(Ptrs.nvnTextureBuilderSetDefaults))(&m_nvnTextureBuilder);
+		NVNtextureFlags m_nvnTextureFlags = ((nvnTextureGetFlags_0)(Ptrs.nvnTextureGetFlags))(nvnTextures[0]);
+		((nvnTextureBuilderSetFlags_0)(Ptrs.nvnTextureBuilderSetFlags))(&m_nvnTextureBuilder, m_nvnTextureFlags);
+		NVNtextureTarget m_nvnTextureTarget = ((nvnTextureGetTarget_0)(Ptrs.nvnTextureGetTarget))(nvnTextures[0]);
+		((nvnTextureBuilderSetTarget_0)(Ptrs.nvnTextureBuilderSetTarget))(&m_nvnTextureBuilder, m_nvnTextureTarget);
+		NVNformat m_nvnFormat = ((nvnTextureGetFormat_0)(Ptrs.nvnTextureGetFormat))(nvnTextures[0]);
+		((nvnTextureBuilderSetFormat_0)(Ptrs.nvnTextureBuilderSetFormat))(&m_nvnTextureBuilder, m_nvnFormat);
+		int width = ((nvnTextureGetWidth_0)(Ptrs.nvnTextureGetWidth))(nvnTextures[0]);
+		int height = ((nvnTextureGetHeight_0)(Ptrs.nvnTextureGetHeight))(nvnTextures[0]);
+		((nvnTextureBuilderSetSize2D_0)(Ptrs.nvnTextureBuilderSetSize2D))(&m_nvnTextureBuilder, width, height);
+		NVNMemoryPool* m_nvnMemoryPool = ((nvnTextureGetMemoryPool_0)(Ptrs.nvnTextureGetMemoryPool))(nvnTextures[0]);
+
+		((nvnMemoryPoolBuilderSetDefaults_0)(Ptrs.nvnMemoryPoolBuilderSetDefaults))(&m_nvnMemoryPoolBuilder);
+		((nvnMemoryPoolBuilderSetDevice_0)(Ptrs.nvnMemoryPoolBuilderSetDevice))(&m_nvnMemoryPoolBuilder, m_nvnDevice);
+		NVNmemoryPoolFlags m_memoryPoolFlags = ((nvnMemoryPoolGetFlags_0)(Ptrs.nvnMemoryPoolGetFlags))(m_nvnMemoryPool);
+		((nvnMemoryPoolBuilderSetFlags_0)(Ptrs.nvnMemoryPoolBuilderSetFlags))(&m_nvnMemoryPoolBuilder, m_memoryPoolFlags);
+		if (initialized) {
+			((nvnMemoryPoolFinalize_0)(Ptrs.nvnMemoryPoolFinalize))(&m_ThirdBufferPool);	
+		}
+		
+		size_t buffer_size = ((nvnTextureBuilderGetStorageSize_0)(Ptrs.nvnTextureBuilderGetStorageSize))(&m_nvnTextureBuilder);
+		size_t alignment = ((nvnTextureBuilderGetStorageAlignment_0)(Ptrs.nvnTextureBuilderGetStorageAlignment))(&m_nvnTextureBuilder);
+		size_t aligned_size = buffer_size;
+		if (aligned_size % alignment != 0) {
+			aligned_size += alignment - (aligned_size % alignment);
+		}
+		if (buffer) {
+			((free_0)(Address_weaks.free))(buffer);
+		}
+		buffer = ((aligned_alloc_0)(Address_weaks.alignedAlloc))(alignment, buffer_size);
+		((nvnMemoryPoolBuilderSetStorage_0)(Ptrs.nvnMemoryPoolBuilderSetStorage))(&m_nvnMemoryPoolBuilder, buffer, aligned_size);
+		((nvnMemoryPoolInitialize_0)(Ptrs.nvnMemoryPoolInitialize))(&m_ThirdBufferPool, &m_nvnMemoryPoolBuilder);
+		((nvnTextureBuilderSetStorage_0)(Ptrs.nvnTextureBuilderSetStorage))(&m_nvnTextureBuilder, &m_ThirdBufferPool, 0);
+		
+		if (initialized) {
+			((nvnTextureFinalize_0)(Ptrs.nvnTextureFinalize))(&m_ThirdBuffer);
+		}
+		initialized = true;
+		((nvnTextureInitialize_0)(Ptrs.nvnTextureInitialize))(&m_ThirdBuffer, &m_nvnTextureBuilder);
+		Frame_buffers[0] = nvnTextures[0];
+		Frame_buffers[1] = nvnTextures[1];
+		Frame_buffers[2] = &m_ThirdBuffer;
+		nvnTextures = &Frame_buffers[0];
+		numBufferedFrames = 3;
+	}
+	*/
 	return ((nvnBuilderSetTextures_0)(Ptrs.nvnWindowBuilderSetTextures))(nvnWindowBuilder, numBufferedFrames, nvnTextures);
 }
 
-void nvnWindowSetNumActiveTextures(const void* nvnWindow, int numBufferedFrames) {
+void nvnWindowSetNumActiveTextures(const NVNWindow* nvnWindow, int numBufferedFrames) {
 	*(Shared.SetActiveBuffers) = numBufferedFrames;
 	if (*(Shared.SetBuffers) >= 2 && *(Shared.SetBuffers) <= *(Shared.Buffers)) {
 		numBufferedFrames = *(Shared.SetBuffers);
@@ -498,7 +648,7 @@ void nvnWindowSetNumActiveTextures(const void* nvnWindow, int numBufferedFrames)
 	return ((nvnWindowSetNumActiveTextures_0)(Ptrs.nvnWindowSetNumActiveTextures))(nvnWindow, numBufferedFrames);
 }
 
-void nvnSetPresentInterval(const void* nvnWindow, int mode) {
+void nvnSetPresentInterval(const NVNWindow* nvnWindow, int mode) {
 	if (!changeFPS) {
 		((nvnSetPresentInterval_0)(Ptrs.nvnWindowSetPresentInterval))(nvnWindow, mode);
 		changedFPS = false;
@@ -535,7 +685,7 @@ void* nvnSyncWait0(const void* _this, uint64_t timeout_ns) {
 	return ((nvnSyncWait_0)(Ptrs.nvnSyncWait))(_this, timeout_ns);
 }
 
-void nvnPresentTexture(const void* _this, const void* nvnWindow, const void* unk3) {
+void nvnPresentTexture(const void* _this, const NVNWindow* nvnWindow, const void* unk3) {
 	static uint8_t FPS_temp = 0;
 	static uint64_t starttick = 0;
 	static uint64_t endtick = 0;
@@ -656,7 +806,7 @@ void nvnPresentTexture(const void* _this, const void* nvnWindow, const void* unk
 	return;
 }
 
-void* nvnAcquireTexture(const void* nvnWindow, const void* nvnSync, const void* index) {
+void* nvnAcquireTexture(const NVNWindow* nvnWindow, const void* nvnSync, const void* index) {
 	if (WindowSync != nvnSync) {
 		WindowSync = (void*)nvnSync;
 	}
@@ -665,8 +815,9 @@ void* nvnAcquireTexture(const void* nvnWindow, const void* nvnSync, const void* 
 	return ret;
 }
 
-uintptr_t nvnGetProcAddress (const void* nvnDevice, const char* nvnFunction) {
+uintptr_t nvnGetProcAddress (NVNDevice* nvnDevice, const char* nvnFunction) {
 	uintptr_t address = ((GetProcAddress)(Ptrs.nvnDeviceGetProcAddress))(nvnDevice, nvnFunction);
+	m_nvnDevice = nvnDevice;
 	if (!strcmp("nvnDeviceGetProcAddress", nvnFunction))
 		return Address.nvnGetProcAddress;
 	else if (!strcmp("nvnQueuePresentTexture", nvnFunction)) {
@@ -701,7 +852,82 @@ uintptr_t nvnGetProcAddress (const void* nvnDevice, const char* nvnFunction) {
 		Ptrs.nvnSyncWait = address;
 		return Address.nvnSyncWait;
 	}
-	else return address;
+	else if (!strcmp("nvnTextureBuilderSetDevice", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetDevice = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetDefaults", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetDefaults = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetFlags", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetFlags = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetSize2D", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetSize2D = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetTarget", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetTarget = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetFormat", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetFormat = address;
+	}
+	else if (!strcmp("nvnTextureBuilderSetStorage", nvnFunction)) {
+		Ptrs.nvnTextureBuilderSetStorage = address;
+	}
+	else if (!strcmp("nvnTextureInitialize", nvnFunction)) {
+		Ptrs.nvnTextureInitialize = address;
+	}
+	else if (!strcmp("nvnTextureFinalize", nvnFunction)) {
+		Ptrs.nvnTextureFinalize = address;
+	}
+	else if (!strcmp("nvnTextureGetFlags", nvnFunction)) {
+		Ptrs.nvnTextureGetFlags = address;
+	}
+	else if (!strcmp("nvnTextureGetTarget", nvnFunction)) {
+		Ptrs.nvnTextureGetTarget = address;
+	}
+	else if (!strcmp("nvnTextureGetFormat", nvnFunction)) {
+		Ptrs.nvnTextureGetFormat = address;
+	}
+	else if (!strcmp("nvnTextureGetHeight", nvnFunction)) {
+		Ptrs.nvnTextureGetHeight = address;
+	}
+	else if (!strcmp("nvnTextureGetWidth", nvnFunction)) {
+		Ptrs.nvnTextureGetWidth = address;
+	}
+	else if (!strcmp("nvnTextureGetMemoryPool", nvnFunction)) {
+		Ptrs.nvnTextureGetMemoryPool = address;
+	}
+	else if (!strcmp("nvnTextureGetMemoryOffset", nvnFunction)) {
+		Ptrs.nvnTextureGetMemoryOffset = address;
+	}
+	else if (!strcmp("nvnMemoryPoolBuilderSetDefaults", nvnFunction)) {
+		Ptrs.nvnMemoryPoolBuilderSetDefaults = address;
+	}
+	else if (!strcmp("nvnMemoryPoolBuilderSetDevice", nvnFunction)) {
+		Ptrs.nvnMemoryPoolBuilderSetDevice = address;
+	}
+	else if (!strcmp("nvnMemoryPoolGetFlags", nvnFunction)) {
+		Ptrs.nvnMemoryPoolGetFlags = address;
+	}
+	else if (!strcmp("nvnMemoryPoolBuilderSetFlags", nvnFunction)) {
+		Ptrs.nvnMemoryPoolBuilderSetFlags = address;
+	}
+	else if (!strcmp("nvnMemoryPoolFinalize", nvnFunction)) {
+		Ptrs.nvnMemoryPoolFinalize = address;
+	}
+	else if (!strcmp("nvnTextureBuilderGetStorageSize", nvnFunction)) {
+		Ptrs.nvnTextureBuilderGetStorageSize = address;
+	}
+	else if (!strcmp("nvnTextureBuilderGetStorageAlignment", nvnFunction)) {
+		Ptrs.nvnTextureBuilderGetStorageAlignment = address;
+	}
+	else if (!strcmp("nvnMemoryPoolBuilderSetStorage", nvnFunction)) {
+		Ptrs.nvnMemoryPoolBuilderSetStorage = address;
+	}
+	else if (!strcmp("nvnMemoryPoolInitialize", nvnFunction)) {
+		Ptrs.nvnMemoryPoolInitialize = address;
+	}
+	return address;
 }
 
 uintptr_t nvnBootstrapLoader_1(const char* nvnName) {
@@ -744,6 +970,8 @@ extern "C" {
 			Address_weaks.ConvertToTimeSpan = SaltySDCore_FindSymbolBuiltin("_ZN2nn2os17ConvertToTimeSpanENS0_4TickE");
 			Address_weaks.GetSystemTick = SaltySDCore_FindSymbolBuiltin("_ZN2nn2os13GetSystemTickEv");
 			Address_weaks.eglGetProcAddress = SaltySDCore_FindSymbolBuiltin("eglGetProcAddress");
+			Address_weaks.alignedAlloc = SaltySDCore_FindSymbolBuiltin("aligned_alloc");
+			Address_weaks.free = SaltySDCore_FindSymbolBuiltin("free");
 			SaltySDCore_ReplaceImport("nvnBootstrapLoader", (void*)nvnBootstrapLoader_1);
 			SaltySDCore_ReplaceImport("eglSwapBuffers", (void*)eglSwap);
 			SaltySDCore_ReplaceImport("eglSwapInterval", (void*)eglInterval);
