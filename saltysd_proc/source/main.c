@@ -276,8 +276,12 @@ void hijack_pid(u64 pid)
 	}
 	// Poll for new threads (svcStartProcess) while stuck in debug
 	
+	uint64_t tick_start = svcGetSystemTick();
 	do
 	{
+		if (svcGetSystemTick() - tick_start > 19200000 * 10) {
+			goto abort_bootstrap;
+		}
 		ret = svcGetThreadList(&threads, tids, 0x200, debug);
 		svcSleepThread(-1);
 	}
@@ -691,6 +695,12 @@ void serviceThread(void* buf)
 			}
 			
 			svcCloseHandle(session);
+		}
+		else if (R_SUCCEEDED(pmdmntInitialize())) {
+			u64 dummy = 0;
+			if (R_FAILED(pmdmntGetApplicationPid(&dummy)))
+				should_terminate = true;
+			pmdmntExit();
 		}
 
 		if (should_terminate) break;
