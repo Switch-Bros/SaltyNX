@@ -30,6 +30,7 @@ SharedMemory _sharedMemory = {};
 size_t reservedSharedMemory = 0;
 uint64_t clkVirtAddr = 0;
 bool displaySync = false;
+uint8_t refreshRate = 0;
 s64 lastAppPID = -1;
 bool isOLED = false;
 
@@ -59,15 +60,24 @@ u64 TIDnow;
 u64 PIDnow;
 
 //Writing only one byte to 0xD1 results in breaking all 4 bytes from 0xD0 to 0xD3. 
-void SetDisplayRefreshRate(uint32_t refreshRate) {
+bool SetDisplayRefreshRate(uint32_t refreshRate) {
 	if (!clkVirtAddr)
-		return;
+		return false;
 	if (refreshRate > 79 || refreshRate < 31)
-		return;
+		return false;
 	uint32_t value = *(uint32_t*)(clkVirtAddr + 0xD0) & 0xFFFF00FF;
-	refreshRate <<= 5;
-	refreshRate /= 10;
-	*(uint32_t*)(clkVirtAddr + 0xD0) = value | (refreshRate << 8);
+	*(uint32_t*)(clkVirtAddr + 0xD0) = value | ((refreshRate << 12) / 5);
+	return true;
+}
+
+bool GetDisplayRefreshRate(uint32_t* refreshRate) {
+	if (!clkVirtAddr)
+		return false;
+	uint32_t value = (*(uint8_t*)(clkVirtAddr + 0xD1) * 10) >> 5;
+	if (value > 79 || value < 31)
+		return false;
+	*refreshRate = value;
+	return true;
 }
 
 void renameCheatsFolder() {
@@ -674,19 +684,18 @@ Result handleServiceCmd(int cmd)
 			u64 reserved;
 		} *resp = r.Raw;
 
-		u64 refreshRate = resp -> refreshRate;
+		u64 refreshRate_temp = resp -> refreshRate;
 
-		if (refreshRate > 79 || refreshRate < 31) {
-			SaltySD_printf("SaltySD: cmd 11 handler -> %d, invalid value. Setting 60...\n", refreshRate);
+		if (refreshRate_temp > 79 || refreshRate_temp < 31) {
+			SaltySD_printf("SaltySD: cmd 11 handler -> %d, invalid value. Setting 60...\n", refreshRate_temp);
 			refreshRate = 60;
 		}
 		else {
-			SaltySD_printf("SaltySD: cmd 11 handler -> %d\n", refreshRate);
+			SaltySD_printf("SaltySD: cmd 11 handler -> %d\n", refreshRate_temp);
+			refreshRate = refreshRate_temp;
 		}
-		if (refreshRate && clkVirtAddr) {	
-			SetDisplayRefreshRate(refreshRate);
+		if (SetDisplayRefreshRate(refreshRate)) 
 			ret = 0;
-		}
 		else ret = 0x1234;
 	}
 	else if (cmd == 12) // SetDisplaySync
@@ -944,8 +953,15 @@ int main(int argc, char *argv[])
 			}
 			if (!found) {
 				lastAppPID = -1;
-				if (displaySync && !isOLED)
+				if (displaySync && !isOLED) {
 					SetDisplayRefreshRate(60);
+					refreshRate = 0;
+				}
+			}
+			else if (displaySync && !isOLED) {
+				uint32_t temp_refreshRate = 0;
+				if (GetDisplayRefreshRate(&temp_refreshRate) && temp_refreshRate != refreshRate)
+					SetDisplayRefreshRate(refreshRate);
 			}
 		}
 
@@ -967,7 +983,7 @@ int main(int argc, char *argv[])
 			svcCloseHandle(sesja);
 		}
 
-		svcSleepThread(50*1000*1000);
+		svcSleepThread(10*1000*1000);
 	}
 	free(pids);
 	
