@@ -59,30 +59,109 @@ void __appExit(void)
 u64 TIDnow;
 u64 PIDnow;
 
-//Writing only one byte to 0xD1 results in breaking all 4 bytes from 0xD0 to 0xD3. 
+struct PLLD_BASE {
+    unsigned int PLLD_DIVM: 8;
+    unsigned int reserved_1: 3;
+    unsigned int PLLD_DIVN: 8;
+    unsigned int reserved_2: 1;
+    unsigned int PLLD_DIVP: 3;
+    unsigned int CSI_CLK_SRC: 1;
+    unsigned int reserved_3: 1;
+    unsigned int PLL_D: 1;
+    unsigned int reserved_4: 1;
+    unsigned int PLLD_LOCK: 1; //Read Only
+    unsigned int reserved_5: 1;
+    unsigned int PLLD_REF_DIS: 1;
+    unsigned int PLLD_ENABLE: 1;
+    unsigned int PLLD_BYPASS: 1;
+};
+
 bool SetDisplayRefreshRate(uint32_t refreshRate) {
 	if (!clkVirtAddr)
 		return false;
-	if (refreshRate > 79 || refreshRate < 31)
+	if (refreshRate > 75 || refreshRate < 35 || refreshRate % 5 != 0)
 		return false;
-	uint32_t value = *(uint32_t*)(clkVirtAddr + 0xD0) & 0xFFFF00FF;
-	*(uint32_t*)(clkVirtAddr + 0xD0) = value | ((refreshRate << 12) / 5);
+	struct PLLD_BASE temp = {0};
+	memcpy(&temp, (void*)(clkVirtAddr + 0xD0), 4);
+	switch(refreshRate) {
+		///All possible cases were tested and those came up as closest possible. Offsets are approximated
+		case 40: {
+			//Offset: +0.02 Hz
+			uint8_t DIVM = 13;
+			uint8_t DIVN = 16 * DIVM;
+			DIVN += 3;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		case 45: {
+			//Offset: -0.001Hz
+			uint8_t DIVM = 12;
+			uint8_t DIVN = 18 * DIVM;
+			DIVN += 3;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		case 50: {
+			//Offset: -0.04Hz
+			uint8_t DIVM = 8;
+			uint8_t DIVN = 20 * DIVM;
+			DIVN += 2;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		case 55: {
+			//Offset: -0.005Hz
+			uint8_t DIVM = 4;
+			uint8_t DIVN = 22 * DIVM;
+			DIVN += 1;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		case 65: {
+			//Offset: +0.04Hz
+			uint8_t DIVM = 8;
+			uint8_t DIVN = 26 * DIVM;
+			DIVN += 3;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		case 70: {
+			//Offset: +0.06Hz
+			uint8_t DIVM = 3;
+			uint8_t DIVN = 28 * DIVM;
+			DIVN += 1;
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
+		default:
+			temp.PLLD_DIVN = (4 * refreshRate) / 10;
+			temp.PLLD_DIVM = 1;
+	}
+	uint32_t value = 0;
+	memcpy(&value, &temp, 4);
+	*(uint32_t*)(clkVirtAddr + 0xD0) = value;
 	return true;
 }
 
 bool GetDisplayRefreshRate(uint32_t* refreshRate) {
 	if (!clkVirtAddr)
 		return false;
-	uint32_t value = (*(uint8_t*)(clkVirtAddr + 0xD1) * 10) >> 5;
-	if (value > 79 || value < 31)
-		return false;
+	struct PLLD_BASE temp = {0};
+	memcpy(&temp, (void*)(clkVirtAddr + 0xD0), 4);
+	uint32_t value = ((temp.PLLD_DIVN / temp.PLLD_DIVM) * 10) / 4;
 	*refreshRate = value;
 	return true;
 }
 
 void renameCheatsFolder() {
-	char* cheatspath = (char*)malloc(0x40);
-	char* cheatspathtemp = (char*)malloc(0x40);
+	char cheatspath[0x40] = "";
+	char cheatspathtemp[0x40] = "";
 
 	snprintf(cheatspath, 0x40, "sdmc:/atmosphere/contents/%016lx/cheats", TIDnow);
 	snprintf(cheatspathtemp, 0x40, "%stemp", cheatspath);
@@ -94,13 +173,11 @@ void renameCheatsFolder() {
 		rename(cheatspathtemp, cheatspath);
 		check = false;
 	}
-	free(cheatspath);
-	free(cheatspathtemp);
 	return;
 }
 
 bool isModInstalled() {
-	char* romfspath = (char*)malloc(0x40);
+	char romfspath[0x40] = "";
 	bool flag = false;
 
 	snprintf(romfspath, 0x40, "sdmc:/atmosphere/contents/%016lx/romfs", eventinfo.tid);
@@ -112,7 +189,6 @@ bool isModInstalled() {
 		closedir(dir);
 	}
 
-	free(romfspath);
 	return flag;
 }
 
@@ -662,13 +738,9 @@ Result handleServiceCmd(int cmd)
 		raw = ipcPrepareHeader(&c, sizeof(*raw));
 
 		raw->magic = SFCO_MAGIC;
-		raw->refreshRate = 0;
-		if (clkVirtAddr) {
-			uint16_t basic_value = *(uint8_t*)(clkVirtAddr + 0xD1);
-			raw->refreshRate = (basic_value * 10) / 32;
-			raw->result = 0;
-		}
-		else raw->result = 1;
+		uint32_t refreshRate = 0;
+		raw->result = !GetDisplayRefreshRate(&refreshRate);
+		raw->refreshRate = refreshRate;
 
 		return 0;
 	}
