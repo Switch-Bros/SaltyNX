@@ -40,6 +40,7 @@ extern "C" {
 	typedef u64 (*_ZN2nn2os17ConvertToTimeSpanENS0_4TickE_0)(u64 tick);
 	typedef u64 (*_ZN2nn2os13GetSystemTickEv_0)();
 	typedef u64 (*eglGetProcAddress_0)(const char* eglName);
+	typedef u8 (*_ZN2nn2oe16GetOperationModeEv)();
 }
 
 struct {
@@ -51,6 +52,7 @@ struct {
 	uintptr_t ConvertToTimeSpan;
 	uintptr_t GetSystemTick;
 	uintptr_t eglGetProcAddress;
+	uintptr_t GetOperationMode;
 } Address_weaks;
 
 struct nvnWindowBuilder {
@@ -216,6 +218,7 @@ uint32_t vulkanSwap2 (const void* VkQueue_T, const void* VkPresentInfoKHR) {
 	static uint32_t FPStiming = 0;
 	static uint8_t FPStickItr = 0;
 	static uint8_t range = 0;
+	static uint8_t rangeoverride = 0;
 	
 	bool FPSlock_delayed = false;
 	
@@ -223,11 +226,25 @@ uint32_t vulkanSwap2 (const void* VkQueue_T, const void* VkPresentInfoKHR) {
 		*(Shared.API) = 3;
 		starttick = ((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))();
 	}
-	if (FPStiming && !LOCK::blockDelayFPS && *(Shared.displaySync) < *(Shared.FPSlocked)) {
-		if ((((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))() - frameend) < FPStiming) {
+
+	uint32_t FPStimingoverride = 0;
+	if (LOCK::overwriteRefreshRate > 0) {
+		if (LOCK::overwriteRefreshRate >= 60.0) {
+			FPStimingoverride = (uint32_t)((double)systemtickfrequency / LOCK::overwriteRefreshRate) - 8000;
+			FPStimingoverride += 20 * rangeoverride;
+		}
+		else {
+			FPStimingoverride = (uint32_t)((double)systemtickfrequency / LOCK::overwriteRefreshRate) - 6000;		
+			FPStimingoverride += 20 * rangeoverride;
+		}
+	}
+	
+
+	if ((FPStiming && !LOCK::blockDelayFPS && (*(Shared.displaySync) == FPSlock || (*(Shared.displaySync) == 0 && (FPSlock == 60 || FPSlock == 30)))) || FPStimingoverride) {
+		if ((((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))() - frameend) < (FPStimingoverride ? FPStimingoverride : FPStiming)) {
 			FPSlock_delayed = true;
 		}
-		while ((((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))() - frameend) < FPStiming) {
+		while ((((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))() - frameend) < (FPStimingoverride ? FPStimingoverride : FPStiming)) {
 			svcSleepThread(-2);
 		}
 	}
@@ -270,12 +287,16 @@ uint32_t vulkanSwap2 (const void* VkQueue_T, const void* VkPresentInfoKHR) {
 			LOCK::applyPatch(configBuffer, configSize, FPSlock, *(Shared.displaySync));
 			*(Shared.patchApplied) = 1;
 		}
+		if (((_ZN2nn2oe16GetOperationModeEv)(Address_weaks.GetOperationMode))() == true && *(Shared.displaySync) != 0) {
+			*(Shared.displaySync) = 0;
+			FPSlock = 0;
+		}
 	}
 
 	*(Shared.FPSavg) = Stats.FPSavg;
 	*(Shared.pluginActive) = true;
 
-	if (FPSlock != *(Shared.FPSlocked)) {
+	if (FPSlock != *(Shared.FPSlocked) || (FPSlock && !FPStiming)) {
 		if ((*(Shared.FPSlocked) < 60) && (*(Shared.FPSlocked) > 0)) {
 			FPStiming = (systemtickfrequency/(*(Shared.FPSlocked))) - 6000;
 		}
@@ -320,7 +341,7 @@ uint32_t vulkanSwap (const void* VkQueue, const void* VkPresentInfoKHR) {
 	}
 	
 
-	if ((FPStiming && !LOCK::blockDelayFPS && (*(Shared.displaySync) == FPSlock || (*(Shared.displaySync) == 0 && (FPSlock == 60 || FPSlock == 30))))|| FPStimingoverride) {
+	if ((FPStiming && !LOCK::blockDelayFPS && (*(Shared.displaySync) == FPSlock || (*(Shared.displaySync) == 0 && (FPSlock == 60 || FPSlock == 30)))) || FPStimingoverride) {
 		if ((((_ZN2nn2os13GetSystemTickEv_0)(Address_weaks.GetSystemTick))() - frameend) < (FPStimingoverride ? FPStimingoverride : FPStiming)) {
 			FPSlock_delayed = true;
 		}
@@ -378,12 +399,16 @@ uint32_t vulkanSwap (const void* VkQueue, const void* VkPresentInfoKHR) {
 			LOCK::applyPatch(configBuffer, configSize, FPSlock, *(Shared.displaySync));
 			*(Shared.patchApplied) = 1;
 		}
+		if (((_ZN2nn2oe16GetOperationModeEv)(Address_weaks.GetOperationMode))() == true && *(Shared.displaySync) != 0) {
+			*(Shared.displaySync) = 0;
+			FPSlock = 0;
+		}
 	}
 
 	*(Shared.FPSavg) = Stats.FPSavg;
 	*(Shared.pluginActive) = true;
 
-	if (FPSlock != *(Shared.FPSlocked)) {
+	if (FPSlock != *(Shared.FPSlocked) || (FPSlock && !FPStiming)) {
 		if ((*(Shared.FPSlocked) < 60) && (*(Shared.FPSlocked) > 0)) {
 			FPStiming = (systemtickfrequency/(*(Shared.FPSlocked))) - 6000;
 		}
@@ -503,12 +528,16 @@ int eglSwap (const void* EGLDisplay, const void* EGLSurface) {
 			LOCK::applyPatch(configBuffer, configSize, FPSlock, *(Shared.displaySync));
 			*(Shared.patchApplied) = 1;
 		}
+		if (((_ZN2nn2oe16GetOperationModeEv)(Address_weaks.GetOperationMode))() == true && *(Shared.displaySync) != 0) {
+			*(Shared.displaySync) = 0;
+			FPSlock = 0;
+		}
 	}
 	
 	*(Shared.FPSavg) = Stats.FPSavg;
 	*(Shared.pluginActive) = true;
 
-	if (FPSlock != *(Shared.FPSlocked)) {
+	if (FPSlock != *(Shared.FPSlocked) || (FPSlock && !FPStiming)) {
 		changeFPS = true;
 		changedFPS = false;
 		if (*(Shared.FPSlocked) == 0) {
@@ -719,12 +748,16 @@ void nvnPresentTexture(const void* _this, const NVNWindow* nvnWindow, const void
 			LOCK::applyPatch(configBuffer, configSize, FPSlock, *(Shared.displaySync));
 			*(Shared.patchApplied) = 1;
 		}
+		if (((_ZN2nn2oe16GetOperationModeEv)(Address_weaks.GetOperationMode))() == true && *(Shared.displaySync) != 0) {
+			*(Shared.displaySync) = 0;
+			FPSlock = 0;
+		}
 	}
 
 	*(Shared.FPSavg) = Stats.FPSavg;
 	*(Shared.pluginActive) = true;
 
-	if (FPSlock != *(Shared.FPSlocked) || (*(Shared.FPSlocked) > 30 && *(Shared.FPSmode) > 1)) {
+	if (FPSlock != *(Shared.FPSlocked) || (FPSlock && !FPStiming) || (*(Shared.FPSlocked) > 30 && *(Shared.FPSmode) > 1)) {
 		changeFPS = true;
 		changedFPS = false;
 		if (*(Shared.FPSlocked) == 0) {
@@ -850,6 +883,7 @@ extern "C" {
 			Address_weaks.ConvertToTimeSpan = SaltySDCore_FindSymbolBuiltin("_ZN2nn2os17ConvertToTimeSpanENS0_4TickE");
 			Address_weaks.GetSystemTick = SaltySDCore_FindSymbolBuiltin("_ZN2nn2os13GetSystemTickEv");
 			Address_weaks.eglGetProcAddress = SaltySDCore_FindSymbolBuiltin("eglGetProcAddress");
+			Address_weaks.GetOperationMode = SaltySDCore_FindSymbolBuiltin("_ZN2nn2oe16GetOperationModeEv");
 			SaltySDCore_ReplaceImport("nvnBootstrapLoader", (void*)nvnBootstrapLoader_1);
 			SaltySDCore_ReplaceImport("eglSwapBuffers", (void*)eglSwap);
 			SaltySDCore_ReplaceImport("eglSwapInterval", (void*)eglInterval);

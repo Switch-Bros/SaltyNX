@@ -33,6 +33,7 @@ bool displaySync = false;
 uint8_t refreshRate = 0;
 s64 lastAppPID = -1;
 bool isOLED = false;
+bool isErista = false;
 
 void __libnx_initheap(void)
 {
@@ -121,6 +122,20 @@ bool SetDisplayRefreshRate(uint32_t refreshRate) {
 			temp.PLLD_DIVN = DIVN;
 			break;
 		}
+		case 60: {
+			uint8_t DIVM = 1;
+			uint8_t DIVN = 24 * DIVM;
+			if (isErista) {
+				 //Erista doesn't like going from higher DIVM than 1 back to 1 without resetting display, which causes refresh rate to drop below 1 Hz.
+				 //We are using this as workaround which offset is similar to 45 Hz -> -0.001Hz.
+				DIVM = 9;
+				DIVN = 24 * DIVM;
+				DIVN += 3;
+			}
+			temp.PLLD_DIVM = DIVM;
+			temp.PLLD_DIVN = DIVN;
+			break;
+		}
 		case 65: {
 			//Offset: +0.04Hz
 			uint8_t DIVM = 8;
@@ -139,13 +154,12 @@ bool SetDisplayRefreshRate(uint32_t refreshRate) {
 			temp.PLLD_DIVN = DIVN;
 			break;
 		}
-		default:
+		default: {
 			temp.PLLD_DIVN = (4 * refreshRate) / 10;
 			temp.PLLD_DIVM = 1;
+		}
 	}
-	uint32_t value = 0;
-	memcpy(&value, &temp, 4);
-	*(uint32_t*)(clkVirtAddr + 0xD0) = value;
+	memcpy((void*)(clkVirtAddr + 0xD0), &temp, 4);
 	return true;
 }
 
@@ -153,8 +167,9 @@ bool GetDisplayRefreshRate(uint32_t* refreshRate) {
 	if (!clkVirtAddr)
 		return false;
 	struct PLLD_BASE temp = {0};
-	memcpy(&temp, (void*)(clkVirtAddr + 0xD0), 4);
-	uint32_t value = ((temp.PLLD_DIVN / temp.PLLD_DIVM) * 10) / 4;
+	uint32_t value = *(uint32_t*)(clkVirtAddr + 0xD0);
+	memcpy(&temp, &value, 4);
+	value = ((temp.PLLD_DIVN / temp.PLLD_DIVM) * 10) / 4;
 	*refreshRate = value;
 	return true;
 }
@@ -977,6 +992,9 @@ int main(int argc, char *argv[])
 			isOLED = true;
 			remove("sdmc:/SaltySD/flags/displaysync.flag");
 		}
+		else if (model == SetSysProductModel_Nx) {
+			isErista = true;
+		}
 	}
 	setsysExit();
 	FILE* file = fopen("sdmc:/SaltySD/flags/displaysync.flag", "rb");
@@ -1026,7 +1044,9 @@ int main(int argc, char *argv[])
 			if (!found) {
 				lastAppPID = -1;
 				if (displaySync && !isOLED) {
-					SetDisplayRefreshRate(60);
+					uint32_t temp_refreshRate = 0;
+					if (GetDisplayRefreshRate(&temp_refreshRate) && temp_refreshRate != 60)
+						SetDisplayRefreshRate(60);
 					refreshRate = 0;
 				}
 			}
