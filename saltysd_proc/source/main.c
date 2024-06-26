@@ -170,6 +170,8 @@ bool GetDisplayRefreshRate(uint32_t* refreshRate) {
 	uint32_t value = *(uint32_t*)(clkVirtAddr + 0xD0);
 	memcpy(&temp, &value, 4);
 	value = ((temp.PLLD_DIVN / temp.PLLD_DIVM) * 10) / 4;
+	if (value == 0)
+		value = 60;
 	*refreshRate = value;
 	return true;
 }
@@ -797,7 +799,7 @@ Result handleServiceCmd(int cmd)
 			u64 reserved;
 		} *resp = r.Raw;
 
-		displaySync = (bool)(resp -> value);
+		if (!isOLED) displaySync = (bool)(resp -> value);
 		if (!isOLED && displaySync) {
 			FILE* file = fopen("sdmc:/SaltySD/flags/displaysync.flag", "wb");
 			fclose(file);
@@ -809,6 +811,7 @@ Result handleServiceCmd(int cmd)
 		}
 		else {
 			remove("sdmc:/SaltySD/flags/displaysync.flag");
+			SaltySD_printf("SaltySD: cmd 12 handler -> %d\n", displaySync);
 		}
 
 		ret = 0;

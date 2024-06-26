@@ -608,18 +608,18 @@ void nvnWindowSetNumActiveTextures(const NVNWindow* nvnWindow, int numBufferedFr
 }
 
 void nvnSetPresentInterval(const NVNWindow* nvnWindow, int mode) {
-	if (!changeFPS) {
-		((nvnSetPresentInterval_0)(Ptrs.nvnWindowSetPresentInterval))(nvnWindow, mode);
-		changedFPS = false;
-		*(Shared.FPSmode) = mode;
-	}
-	else if (mode < 0) {
+	if (mode < 0) {
 		mode *= -1;
 		if (*(Shared.FPSmode) != mode) {
 			((nvnSetPresentInterval_0)(Ptrs.nvnWindowSetPresentInterval))(nvnWindow, mode);
 			*(Shared.FPSmode) = mode;
 		}
 		changedFPS = true;
+	}
+	else if (!changeFPS) {
+		((nvnSetPresentInterval_0)(Ptrs.nvnWindowSetPresentInterval))(nvnWindow, mode);
+		changedFPS = false;
+		*(Shared.FPSmode) = mode;
 	}
 	return;
 }
@@ -757,7 +757,7 @@ void nvnPresentTexture(const void* _this, const NVNWindow* nvnWindow, const void
 	*(Shared.FPSavg) = Stats.FPSavg;
 	*(Shared.pluginActive) = true;
 
-	if (FPSlock != *(Shared.FPSlocked) || (FPSlock && !FPStiming) || (*(Shared.FPSlocked) > 30 && *(Shared.FPSmode) > 1)) {
+	if ((FPSlock != *(Shared.FPSlocked)) || (FPSlock && !FPStiming) || (*(Shared.FPSlocked) > 30 && *(Shared.FPSmode) > 1)) {
 		changeFPS = true;
 		changedFPS = false;
 		if (*(Shared.FPSlocked) == 0) {
