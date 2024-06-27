@@ -69,6 +69,7 @@ Remember to restart Switch
 | Grid: Autosport | plugins | Heap related |
 | Immortals Fenyx Rising | plugins | Heap related |
 | LIMBO | all | 32-bit game, not supported |
+| Luigi's Mansions 2 HD | all | 32-bit game, not supported |
 | Luigi's Mansion 3 | plugins | Heap related |
 | Mario Kart 8 | all | 32-bit game, not supported |
 | Mario Strikers: Battle League | plugins | Heap related |
