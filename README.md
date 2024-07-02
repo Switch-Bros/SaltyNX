@@ -48,7 +48,7 @@ Remember to restart Switch
 ---
 
 # Thanks to
-- `Cooler3D` for developing and releasing publicly first tool allowing changing refresh rate of display in HOS. Code for changing refresh rate in SaltyNX is based on reverse engineered code from his tool.
+- `Cooler3D` for sharing code with me how he was changing display refresh rate in his tools that were first publicly available tools allowing this on HOS. I have used that as basis to make my own function.
 
 # List of titles not compatible with plugins/patches
 
